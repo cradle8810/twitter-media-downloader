@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	twitterscraper "github.com/Toeplitz/twitter-scraper-auth-fix"
+	twitterscraper "github.com/jeffrey12cali/twitter-scraper"
 	"github.com/mmpx12/optionparser"
 )
 
