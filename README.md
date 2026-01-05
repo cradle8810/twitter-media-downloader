@@ -12,32 +12,18 @@ It will create a twmd_cookies.json so you will not have to enter these cookies e
 
 ## usage: 
 
+The same as this original command. It prints only images/video URLs. You can use them with xargs(1).
+```
+twitter-media-downloader -L -z -B -t <tweetid>
+```
+
 ```
 Usage:
 -h, --help                   Show this help
--u, --user=USERNAME          User you want to download
--t, --tweet=TWEET_ID         Single tweet to download
--n, --nbr=NBR                Number of tweets to download
--i, --img                    Download images only
--v, --video                  Download videos only
--a, --all                    Download images and videos
--r, --retweet                Download retweet too
--z, --url                    Print media url without download it
--R, --retweet-only           Download only retweet
--M, --mediatweet-only        Download only media tweet
--s, --size=SIZE              Choose size between small|normal|large (default
-                             large)
--U, --update                 Download missing tweet only
--o, --output=DIR             Output directory
--f, --file-format=FORMAT     Formatted name for the downloaded file, {DATE}
-                             {USERNAME} {NAME} {TITLE} {ID}
--d, --date-format=FORMAT     Apply custom date format.
-                             (https://go.dev/src/time/format.go)
--L, --login                  Login (needed for NSFW tweets)
--C, --cookies                Use cookies for authentication
--p, --proxy=PROXY            Use proxy (proto://ip:port)
--V, --version                Print version and exit
 -B, --no-banner              Don't print banner
+-L, --login                  Login (needed for NSFW tweets)
+-t, --tweet=TWEET_ID         Single tweet to download
+-z, --url                    Print media url without download it
 ```
 
 ### Examples:

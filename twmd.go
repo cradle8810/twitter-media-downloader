@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	URL "net/url"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -33,7 +31,7 @@ var (
 	vidz    bool
 	imgs    bool
 	urlOnly bool
-	version = "1.14.2"
+	version = "1.14.2_mod"
 	scraper *twitterscraper.Scraper
 	client  *http.Client
 	size    = "orig"
@@ -230,33 +228,23 @@ func processCookieString(cookieStr string) []*http.Cookie {
 	return cookies
 }
 
+// DON'T LOOP THIS!!!!! DIE WITH RETURN CODE 2 IMMIDIATELY WHEN FAILED!!!!!
 func askPass() {
-	for {
-		var auth_token, ct0 string
-		fmt.Println(`  ╔═══════════════════════════════════════════════════════════════╗
-  ║                                                               ║
-  ║  User/pass login is no longer supported,                      ║
-  ║  Log in using a browser and find auth_token and ct0 cookies.  ║
-  ║  (via Inspect → Storage → Cookies).                           ║
-  ║                                                               ║
-  ╚═══════════════════════════════════════════════════════════════╝`)
-		fmt.Println()
-		fmt.Printf("auth_token cookie: ")
-		fmt.Scanln(&auth_token)
-		fmt.Printf("ct0 cookie: ")
-		fmt.Scanln(&ct0)
-		scraper.SetAuthToken(twitterscraper.AuthToken{Token: auth_token, CSRFToken: ct0})
-		if !scraper.IsLoggedIn() {
-			fmt.Println("Bad Cookies.")
-			askPass()
-		}
-		cookies := scraper.GetCookies()
-		js, _ := json.Marshal(cookies)
-		f, _ := os.OpenFile("twmd_cookies.json", os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0666)
-		defer f.Close()
-		f.Write(js)
-		break
+	var auth_token, ct0 string
+	fmt.Printf("auth_token cookie: ")
+	fmt.Scanln(&auth_token)
+	fmt.Printf("ct0 cookie: ")
+	fmt.Scanln(&ct0)
+	scraper.SetAuthToken(twitterscraper.AuthToken{Token: auth_token, CSRFToken: ct0})
+	if !scraper.IsLoggedIn() {
+		fmt.Println("Bad Cookies.")
+		os.Exit(2) // die()
 	}
+	cookies := scraper.GetCookies()
+	js, _ := json.Marshal(cookies)
+	f, _ := os.OpenFile("twmd_cookies.json", os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0666)
+	defer f.Close()
+	f.Write(js)
 }
 
 func Login(useCookies bool) {
@@ -297,9 +285,8 @@ func Login(useCookies bool) {
 		if useCookies {
 			fmt.Println("Invalid cookies. Please try again.")
 			os.Remove("twmd_cookies.json")
-			Login(useCookies)
 		} else {
-			askPass()
+			os.Exit(2)
 		}
 	} else {
 		fmt.Println("Logged in.")
@@ -393,72 +380,31 @@ func sanitizeText(text string, regex *regexp.Regexp, maxLen int) string {
 }
 
 func main() {
-	var nbr, single, output string
-	var retweet, all, printversion, nologo, login, useCookies bool
+	var (
+		single       = ""
+		output       = ""
+		all          = true
+		printversion bool
+		login        = true
+		useCookies   bool
+	)
 	op := optionparser.NewOptionParser()
 	op.Banner = "twmd: Apiless twitter media downloader\n\nUsage:"
-	op.On("-u", "--user USERNAME", "User you want to download", &usr)
 	op.On("-t", "--tweet TWEET_ID", "Single tweet to download", &single)
-	op.On("-n", "--nbr NBR", "Number of tweets to download", &nbr)
-	op.On("-i", "--img", "Download images only", &imgs)
-	op.On("-v", "--video", "Download videos only", &vidz)
-	op.On("-a", "--all", "Download images and videos", &all)
-	op.On("-r", "--retweet", "Download retweet too", &retweet)
-	op.On("-z", "--url", "Print media url without download it", &urlOnly)
-	op.On("-R", "--retweet-only", "Download only retweet", &onlyrtw)
-	op.On("-M", "--mediatweet-only", "Download only media tweet", &onlymtw)
-	op.On("-s", "--size SIZE", "Choose size between small|normal|large (default large)", &size)
-	op.On("-U", "--update", "Download missing tweet only", &update)
-	op.On("-o", "--output DIR", "Output directory", &output)
-	op.On("-f", "--file-format FORMAT", "Formatted name for the downloaded file, {DATE} {USERNAME} {NAME} {TITLE} {ID}", &format)
-	op.On("-d", "--date-format FORMAT", "Apply custom date format. (https://go.dev/src/time/format.go)", &datefmt)
-	op.On("-L", "--login", "Login (needed for NSFW tweets)", &login)
-	op.On("-C", "--cookies", "Use cookies for authentication", &useCookies)
-	op.On("-p", "--proxy PROXY", "Use proxy (proto://ip:port)", &proxy)
 	op.On("-V", "--version", "Print version and exit", &printversion)
-	op.On("-B", "--no-banner", "Don't print banner", &nologo)
-	op.Exemple("twmd -u Spraytrains -o ~/Downloads -a -r -n 300")
-	op.Exemple("twmd -u Spraytrains -o ~/Downloads -R -U -n 300")
-	op.Exemple("twmd --proxy socks5://127.0.0.1:9050 -t 156170319961391104")
-	op.Exemple("twmd -t 156170319961391104")
-	op.Exemple("twmd -t 156170319961391104 -f \"{DATE} {ID}\"")
-	op.Exemple("twmd -t 156170319961391104 -f \"{DATE} {ID}\" -d \"2006-01-02_15-04-05\"")
 	op.Parse()
 
 	if printversion {
 		fmt.Println("version:", version)
 		os.Exit(1)
 	}
-
-	op.Logo("twmd", "elite", nologo)
 	if usr == "" && single == "" {
 		fmt.Println("You must specify an user (-u --user) or a tweet (-t --tweet)")
-		op.Help()
 		os.Exit(1)
 	}
 	if all {
 		vidz = true
 		imgs = true
-	}
-	if !vidz && !imgs && single == "" {
-		fmt.Println("You must specify what to download. (-i --img) for images, (-v --video) for videos or (-a --all) for both")
-		op.Help()
-		os.Exit(1)
-	}
-	var re = regexp.MustCompile(`{ID}|{DATE}|{NAME}|{USERNAME}|{TITLE}`)
-	if format != "" && !re.MatchString(format) {
-		fmt.Println("You must specify a format (-f --format)")
-		op.Help()
-		os.Exit(1)
-	}
-
-	re = regexp.MustCompile("small|normal|large")
-	if !re.MatchString(size) && size != "orig" {
-		print("Error in size, setting up to normal\n")
-		size = ""
-	}
-	if size == "large" {
-		size = "orig"
 	}
 
 	client = &http.Client{
@@ -489,52 +435,6 @@ func main() {
 		Login(useCookies)
 	}
 
-	if single != "" {
-		if output == "" {
-			output = "./"
-		} else {
-			os.MkdirAll(output, os.ModePerm)
-		}
-		singleTweet(output, single)
-		os.Exit(0)
-	}
-	if nbr == "" {
-		nbr = "3000"
-	}
-	if output != "" {
-		output = output + "/" + usr
-	} else {
-		output = usr
-	}
-	if vidz {
-		os.MkdirAll(output+"/video", os.ModePerm)
-	}
-	if imgs {
-		os.MkdirAll(output+"/img", os.ModePerm)
-	}
-	nbrs, _ := strconv.Atoi(nbr)
-	wg := sync.WaitGroup{}
-
-	var tweets <-chan *twitterscraper.TweetResult
-	if onlymtw {
-		tweets = scraper.GetMediaTweets(context.Background(), usr, nbrs)
-	} else {
-		tweets = scraper.GetTweets(context.Background(), usr, nbrs)
-	}
-
-	for tweet := range tweets {
-		if tweet.Error != nil {
-			fmt.Println(tweet.Error)
-			os.Exit(1)
-		}
-		if vidz {
-			wg.Add(1)
-			go videoUser(&wg, tweet, output, retweet)
-		}
-		if imgs {
-			wg.Add(1)
-			go photoUser(&wg, tweet, output, retweet)
-		}
-	}
-	wg.Wait()
+	singleTweet(output, single)
+	os.Exit(0)
 }

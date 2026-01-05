@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/andlabs/ui"
-	_ "github.com/andlabs/ui/winmanifest"
 	twitterscraper "github.com/n0madic/twitter-scraper"
 )
 
