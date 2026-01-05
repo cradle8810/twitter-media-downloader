@@ -17,7 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	twitterscraper "github.com/imperatrona/twitter-scraper"
+	twitterscraper "github.com/Toeplitz/twitter-scraper-auth-fix"
 	"github.com/mmpx12/optionparser"
 )
 
