@@ -5,17 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"net"
 	"net/http"
 	URL "net/url"
 	"os"
-	"regexp"
 	"strings"
-	"sync"
 	"time"
-	"unicode/utf8"
 
 	twitterscraper "github.com/Toeplitz/twitter-scraper-auth-fix"
 	"github.com/mmpx12/optionparser"
@@ -23,151 +19,28 @@ import (
 
 var (
 	usr     string
-	format  string
 	proxy   string
-	update  bool
-	onlyrtw bool
-	onlymtw bool
 	vidz    bool
 	imgs    bool
-	urlOnly bool
 	version = "1.14.2_mod"
 	scraper *twitterscraper.Scraper
 	client  *http.Client
 	size    = "orig"
-	datefmt = "2006-01-02"
 )
-
-func download(wg *sync.WaitGroup, tweet interface{}, url string, filetype string, output string, dwn_type string) {
-	defer wg.Done()
-	segments := strings.Split(url, "/")
-	name := segments[len(segments)-1]
-	re := regexp.MustCompile(`name=`)
-	if re.MatchString(name) {
-		segments := strings.Split(name, "?")
-		name = segments[len(segments)-2]
-	}
-	if format != "" {
-		name = getFormat(tweet) + "_" + name
-	}
-	if urlOnly {
-		fmt.Println(url)
-		time.Sleep(2 * time.Millisecond)
-		return
-	}
-	req, err := http.NewRequest("GET", url, nil)
-	req.Header.Add("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
-	resp, err := client.Do(req)
-
-	if resp != nil {
-		defer resp.Body.Close()
-	}
-	if err != nil {
-		fmt.Println("error")
-		return
-	}
-
-	if resp.StatusCode != 200 {
-		fmt.Println("error")
-		return
-	}
-
-	var f *os.File
-	if dwn_type == "user" {
-		if update {
-			if _, err := os.Stat(output + "/" + filetype + "/" + name); !errors.Is(err, os.ErrNotExist) {
-				fmt.Println(name + ": already exists")
-				return
-			}
-		}
-		if filetype == "rtimg" {
-			f, _ = os.Create(output + "/img/RE-" + name)
-		} else if filetype == "rtvideo" {
-			f, _ = os.Create(output + "/video/RE-" + name)
-		} else {
-			f, _ = os.Create(output + "/" + filetype + "/" + name)
-		}
-	} else {
-		if update {
-			if _, err := os.Stat(output + "/" + name); !errors.Is(err, os.ErrNotExist) {
-				fmt.Println("File exist")
-				return
-			}
-		}
-		f, _ = os.Create(output + "/" + name)
-	}
-	defer f.Close()
-	io.Copy(f, resp.Body)
-	fmt.Println("Downloaded " + name)
-}
-
-func videoUser(wait *sync.WaitGroup, tweet *twitterscraper.TweetResult, output string, rt bool) {
-	defer wait.Done()
-	wg := sync.WaitGroup{}
-	if len(tweet.Videos) > 0 {
-		for _, i := range tweet.Videos {
-			url := strings.Split(i.URL, "?")[0]
-			if tweet.IsRetweet {
-				if rt || onlyrtw {
-					wg.Add(1)
-					go download(&wg, tweet, url, "video", output, "user")
-					continue
-				} else {
-					continue
-				}
-			} else if onlyrtw {
-				continue
-			}
-			wg.Add(1)
-			go download(&wg, tweet, url, "video", output, "user")
-		}
-		wg.Wait()
-	}
-}
-
-func photoUser(wait *sync.WaitGroup, tweet *twitterscraper.TweetResult, output string, rt bool) {
-	defer wait.Done()
-	wg := sync.WaitGroup{}
-	if len(tweet.Photos) > 0 || tweet.IsRetweet {
-		if tweet.IsRetweet && (rt || onlyrtw) {
-			singleTweet(output, tweet.ID)
-		}
-		for _, i := range tweet.Photos {
-			if onlyrtw || tweet.IsRetweet {
-				continue
-			}
-			var url string
-			if !strings.Contains(i.URL, "video_thumb/") {
-				if size == "orig" || size == "small" {
-					url = i.URL + "?name=" + size
-				} else {
-					url = i.URL
-				}
-				wg.Add(1)
-				go download(&wg, tweet, url, "img", output, "user")
-			}
-		}
-		wg.Wait()
-	}
-}
 
 func videoSingle(tweet *twitterscraper.Tweet, output string) {
 	if tweet == nil {
 		return
 	}
 	if len(tweet.Videos) > 0 {
-		wg := sync.WaitGroup{}
 		for _, i := range tweet.Videos {
 			url := strings.Split(i.URL, "?")[0]
 			if usr != "" {
-				wg.Add(1)
-				go download(&wg, tweet, url, "rtvideo", output, "user")
+				fmt.Println(url)
 			} else {
-				wg.Add(1)
-				go download(&wg, tweet, url, "tweet", output, "tweet")
+				fmt.Println(url)
 			}
 		}
-		wg.Wait()
 	}
 }
 
@@ -176,7 +49,6 @@ func photoSingle(tweet *twitterscraper.Tweet, output string) {
 		return
 	}
 	if len(tweet.Photos) > 0 {
-		wg := sync.WaitGroup{}
 		for _, i := range tweet.Photos {
 			var url string
 			if !strings.Contains(i.URL, "video_thumb/") {
@@ -186,15 +58,12 @@ func photoSingle(tweet *twitterscraper.Tweet, output string) {
 					url = i.URL
 				}
 				if usr != "" {
-					wg.Add(1)
-					go download(&wg, tweet, url, "rtimg", output, "user")
+					fmt.Println(url)
 				} else {
-					wg.Add(1)
-					go download(&wg, tweet, url, "tweet", output, "tweet")
+					fmt.Println(url)
 				}
 			}
 		}
-		wg.Wait()
 	}
 }
 
@@ -237,7 +106,7 @@ func askPass() {
 	fmt.Scanln(&ct0)
 	scraper.SetAuthToken(twitterscraper.AuthToken{Token: auth_token, CSRFToken: ct0})
 	if !scraper.IsLoggedIn() {
-		fmt.Println("Bad Cookies.")
+		fmt.Fprintln(os.Stderr,"Bad Cookies.")
 		os.Exit(2) // die()
 	}
 	cookies := scraper.GetCookies()
@@ -268,7 +137,7 @@ func Login(useCookies bool) {
 			var cookies []*http.Cookie
 			json.NewDecoder(f).Decode(&cookies)
 			scraper.SetCookies(cookies)
-			fmt.Println(scraper.IsLoggedIn())
+			fmt.Fprintln(os.Stderr,scraper.IsLoggedIn())
 		}
 	} else {
 		if _, err := os.Stat("twmd_cookies.json"); errors.Is(err, fs.ErrNotExist) {
@@ -283,107 +152,34 @@ func Login(useCookies bool) {
 
 	if !scraper.IsLoggedIn() {
 		if useCookies {
-			fmt.Println("Invalid cookies. Please try again.")
+			fmt.Fprintln(os.Stderr,"Invalid cookies. Please try again.")
 			os.Remove("twmd_cookies.json")
 		} else {
 			os.Exit(2)
 		}
 	} else {
-		fmt.Println("Logged in.")
+		fmt.Fprintln(os.Stderr,"Logged in.")
 	}
 }
 
 func singleTweet(output string, id string) {
 	tweet, err := scraper.GetTweet(id)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr,err)
 		os.Exit(1)
 	}
 	if tweet == nil {
-		fmt.Println("Error retrieve tweet")
+		fmt.Fprintln(os.Stderr,"Error retrieve tweet")
 		return
 	}
-	if usr != "" {
-		if vidz {
-			videoSingle(tweet, output)
-		}
-		if imgs {
-			photoSingle(tweet, output)
-		}
-	} else {
-		videoSingle(tweet, output)
-		photoSingle(tweet, output)
-	}
-}
-
-func getFormat(tweet interface{}) string {
-	var formatNew string
-	var tweetResult *twitterscraper.TweetResult
-	var tweetObj *twitterscraper.Tweet
-
-	switch t := tweet.(type) {
-	case *twitterscraper.TweetResult:
-		tweetResult = t
-	case *twitterscraper.Tweet:
-		tweetObj = t
-	default:
-		fmt.Println("Invalid tweet type")
-		return ""
-	}
-
-	pattern := `[/\\:*?"<>|]`
-	regex, err := regexp.Compile(pattern)
-	if err != nil {
-		fmt.Println("Error compiling regular expression:", err)
-		return ""
-	}
-
-	replacer := map[string]string{}
-
-	if tweetResult != nil {
-		replacer["{DATE}"] = time.Unix(tweetResult.Timestamp, 0).Format(datefmt)
-		replacer["{NAME}"] = tweetResult.Name
-		replacer["{USERNAME}"] = tweetResult.Username
-		replacer["{TITLE}"] = sanitizeText(tweetResult.Text, regex, 255)
-		replacer["{ID}"] = tweetResult.ID
-	} else if tweetObj != nil {
-		replacer["{DATE}"] = time.Unix(tweetObj.Timestamp, 0).Format(datefmt)
-		replacer["{NAME}"] = tweetObj.Name
-		replacer["{USERNAME}"] = tweetObj.Username
-		replacer["{TITLE}"] = sanitizeText(tweetObj.Text, regex, 255)
-		replacer["{ID}"] = tweetObj.ID
-	}
-
-	formatNew = format
-
-	for key, val := range replacer {
-		formatNew = strings.ReplaceAll(formatNew, key, val)
-	}
-
-	return formatNew
-}
-
-func sanitizeText(text string, regex *regexp.Regexp, maxLen int) string {
-	cleaned := ""
-	remaining := maxLen
-	for _, char := range text {
-		charStr := string(char)
-		if regex.MatchString(charStr) {
-			charStr = "_"
-		}
-		if utf8.RuneCountInString(cleaned)+utf8.RuneCountInString(charStr) > remaining {
-			break
-		}
-		cleaned += charStr
-	}
-	return cleaned
+	videoSingle(tweet, output)
+	photoSingle(tweet, output)
 }
 
 func main() {
 	var (
 		single       = ""
 		output       = ""
-		all          = true
 		printversion bool
 		login        = true
 		useCookies   bool
@@ -395,16 +191,12 @@ func main() {
 	op.Parse()
 
 	if printversion {
-		fmt.Println("version:", version)
+		fmt.Fprintln(os.Stderr,"version:", version)
 		os.Exit(1)
 	}
 	if usr == "" && single == "" {
-		fmt.Println("You must specify an user (-u --user) or a tweet (-t --tweet)")
+		fmt.Fprintln(os.Stderr,"You must specify an user (-u --user) or a tweet (-t --tweet)")
 		os.Exit(1)
-	}
-	if all {
-		vidz = true
-		imgs = true
 	}
 
 	client = &http.Client{

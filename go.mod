@@ -4,8 +4,8 @@ go 1.24.1
 
 require (
 	github.com/Toeplitz/twitter-scraper-auth-fix v0.0.0-20251224130107-d8047e3db57a
+	github.com/jeffrey12cali/twitter-scraper v0.0.0-20251219195906-ce60ffe6cd24
 	github.com/mmpx12/optionparser v1.1.0
-	github.com/n0madic/twitter-scraper v0.0.0-20231104223941-296710769dd8
 )
 
 require (

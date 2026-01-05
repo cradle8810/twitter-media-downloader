@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	twitterscraper "github.com/n0madic/twitter-scraper"
+	twitterscraper "github.com/jeffrey12cali/twitter-scraper"
 )
 
 type Opts struct {
