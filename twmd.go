@@ -22,7 +22,8 @@ var (
 	proxy   string
 	vidz    bool
 	imgs    bool
-	version = "1.14.2_mod"
+	urlOnly bool
+	version = "1.15.0"
 	scraper *twitterscraper.Scraper
 	client  *http.Client
 	size    = "orig"
